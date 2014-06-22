@@ -2,6 +2,8 @@
 cmake_minimum_required(VERSION 2.6)
 project(TEST)
 
+set(CMAKE_CXX_FLAGS "-std=c++11 -O0 -DDEBUG -ggdb" CACHE INTERNAL "cxx")
+
 ## Target
 set(TEST_SRCS main.cpp AsyncSerial.cpp BufferedAsyncSerial.cpp)
 add_executable(async ${TEST_SRCS})

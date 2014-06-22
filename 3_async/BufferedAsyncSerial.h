@@ -93,7 +93,7 @@ private:
             const std::string& s);
 
     std::vector<char> readQueue;
-    boost::mutex readQueueMutex;
+		std::mutex readQueueMutex;
 };
 
 #endif //BUFFEREDASYNCSERIAL_H

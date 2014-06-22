@@ -9,9 +9,9 @@
 #define	ASYNCSERIAL_H
 
 #include <vector>
+#include <thread>
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
-#include <boost/thread.hpp>
 #include <boost/utility.hpp>
 #include <boost/function.hpp>
 #include <boost/shared_array.hpp>

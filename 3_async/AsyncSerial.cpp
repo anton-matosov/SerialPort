@@ -32,7 +32,7 @@
 #include <iostream>
 #include <boost/bind.hpp>
 
-using namespace std;
+//using namespace std;
 using namespace boost;
 
 //
@@ -49,16 +49,16 @@ public:
 
     boost::asio::io_service io; ///< Io service object
     boost::asio::serial_port port; ///< Serial port object
-    boost::thread backgroundThread; ///< Thread that runs read/write operations
+		std::thread backgroundThread; ///< Thread that runs read/write operations
     bool open; ///< True if port open
     bool error; ///< Error flag
-    mutable boost::mutex errorMutex; ///< Mutex for access to error
+		mutable std::mutex errorMutex; ///< Mutex for access to error
 
     /// Data are queued here before they go in writeBuffer
     std::vector<char> writeQueue;
     boost::shared_array<char> writeBuffer; ///< Data being written
     size_t writeBufferSize; ///< Size of writeBuffer
-    boost::mutex writeQueueMutex; ///< Mutex for access to writeQueue
+		std::mutex writeQueueMutex; ///< Mutex for access to writeQueue
     char readBuffer[AsyncSerial::readBufferSize]; ///< data being read
 
     /// Read complete callback
@@ -290,10 +290,10 @@ class AsyncSerialImpl: private boost::noncopyable
 public:
     AsyncSerialImpl(): backgroundThread(), open(false), error(false) {}
 
-    boost::thread backgroundThread; ///< Thread that runs read operations
+		std::thread backgroundThread; ///< Thread that runs read operations
     bool open; ///< True if port open
     bool error; ///< Error flag
-    mutable boost::mutex errorMutex; ///< Mutex for access to error
+		mutable std::mutex errorMutex; ///< Mutex for access to error
 
     int fd; ///< File descriptor for serial port
     
@@ -405,7 +405,7 @@ void AsyncSerial::open(const std::string& devname, unsigned int baud_rate,
     setErrorStatus(false);//If we get here, no error
     pimpl->open=true; //Port is now open
 
-    thread t(bind(&AsyncSerial::doRead, this));
+		std::thread t(bind(&AsyncSerial::doRead, this));
     pimpl->backgroundThread.swap(t);
 }
 
@@ -416,7 +416,7 @@ bool AsyncSerial::isOpen() const
 
 bool AsyncSerial::errorStatus() const
 {
-    lock_guard<mutex> l(pimpl->errorMutex);
+		std::lock_guard<std::mutex> l(pimpl->errorMutex);
     return pimpl->error;
 }
 
@@ -506,7 +506,7 @@ void AsyncSerial::doClose()
 
 void AsyncSerial::setErrorStatus(bool e)
 {
-    lock_guard<mutex> l(pimpl->errorMutex);
+		std::lock_guard<std::mutex> l(pimpl->errorMutex);
     pimpl->error=e;
 }
 

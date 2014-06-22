@@ -9,27 +9,34 @@ using namespace boost;
 
 int main(int argc, char* argv[])
 {
-    try {
-        BufferedAsyncSerial serial("/dev/ttyUSB0",115200);
+	try {
+		cout << "Start\n";
 
-        //Return immediately. String is written *after* the function returns,
-        //in a separate thread.
-        serial.writeString("Hello world\r\n");
+		BufferedAsyncSerial serial("/dev/tty.SLAB_USBtoUART", 9600);
 
-        //Simulate doing something else while the serial device replies.
-        //When the serial device replies, the second thread stores the received
-        //data in a buffer.
-        this_thread::sleep(posix_time::seconds(2));
+		//Return immediately. String is written *after* the function returns,
+		//in a separate thread.
+		//serial.writeString("Hello world\r\n");
 
-        //Always returns immediately. If the terminator \r\n has not yet
-        //arrived, returns an empty string.
-        cout<<serial.readStringUntil("\r\n")<<endl;
+		//Simulate doing something else while the serial device replies.
+		//When the serial device replies, the second thread stores the received
+		//data in a buffer.
+		//this_thread::sleep(posix_time::seconds(2));
 
-        serial.close();
-  
-    } catch(boost::system::system_error& e)
-    {
-        cout<<"Error: "<<e.what()<<endl;
-        return 1;
-    }
+		//Always returns immediately. If the terminator \r\n has not yet
+		//arrived, returns an empty string.
+		cout << serial.readStringUntil("\r")<<endl;
+		cout << serial.readStringUntil("\r")<<endl;
+		cout << serial.readStringUntil("\r")<<endl;
+		cout << serial.readStringUntil("\r")<<endl;
+
+		serial.close();
+
+		cout << "End\n";
+	}
+	catch(boost::system::system_error& e)
+	{
+		cout<<"Error: "<<e.what()<<endl;
+		return 1;
+	}
 }
