@@ -219,7 +219,7 @@ The readString() however, has been replaced by two member functions, readString(
 
 The first one is good when there is a need to read an exact number of characters, instead of reading up to the end of a line. The second acnowledges that \n is not universally accepted as line terminator. If a different terminator character, or terminator string, like "\r\n" is required, it can be passed as parameter. Again for convenience, if no parameter is specified, it defaults to "\n".
 
-Then there is a set of new menber functions, read() and write(), each one with two overloads. These are designed to let you read and write binary data. The need for the two overloads is to allow using either a plain array, or a vector.
+Then there is a set of new member functions, read() and write(), each one with two overloads. These are designed to let you read and write binary data. The need for the two overloads is to allow using either a plain array, or a vector.
 Let's see this class in action:
 
 ```
@@ -403,7 +403,7 @@ Well yes, this class can be further improved. Where's its weak point? It's in th
 Here's the purpose of the last class of this article: the CallbackAsyncSerial.
 
 ## Part 4: Callbacks
-This is the last class presnted in this article, CallbackAsyncSerial. Contrary to all classes presnted until now, this exposes its multithreaded implementation, and might require using mutexes in the code that uses it. This class, just like BufferedAsyncSerial derives from AsyncSerial, so all the member functions that were in AsyncSerial work the same way in this class. This includes the code to open/close and write data to the serial port. What changes is the reading part.
+This is the last class presented in this article, CallbackAsyncSerial. Contrary to all classes presented until now, this exposes its multithreaded implementation, and might require using mutexes in the code that uses it. This class, just like BufferedAsyncSerial derives from AsyncSerial, so all the member functions that were in AsyncSerial work the same way in this class. This includes the code to open/close and write data to the serial port. What changes is the reading part.
 
 Here is the public inteface of the CallbackAsyncSerial class:
 
