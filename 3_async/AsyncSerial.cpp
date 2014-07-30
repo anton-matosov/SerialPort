@@ -39,7 +39,6 @@ using namespace boost;
 //Class AsyncSerial
 //
 
-#ifndef __APPLE__
 
 class AsyncSerialImpl: private boost::noncopyable
 {
@@ -99,7 +98,7 @@ void AsyncSerial::open(const std::string& devname, unsigned int baud_rate,
     //This gives some work to the io_service before it is started
     pimpl->io.post(boost::bind(&AsyncSerial::doRead, this));
 
-    thread t(boost::bind(&asio::io_service::run, &pimpl->io));
+		std::thread t(boost::bind(&asio::io_service::run, &pimpl->io));
     pimpl->backgroundThread.swap(t);
     setErrorStatus(false);//If we get here, no error
     pimpl->open=true; //Port is now open
@@ -112,7 +111,7 @@ bool AsyncSerial::isOpen() const
 
 bool AsyncSerial::errorStatus() const
 {
-    lock_guard<mutex> l(pimpl->errorMutex);
+		std::lock_guard<std::mutex> l(pimpl->errorMutex);
     return pimpl->error;
 }
 
@@ -134,7 +133,7 @@ void AsyncSerial::close()
 void AsyncSerial::write(const char *data, size_t size)
 {
     {
-        lock_guard<mutex> l(pimpl->writeQueueMutex);
+				std::lock_guard<std::mutex> l(pimpl->writeQueueMutex);
         pimpl->writeQueue.insert(pimpl->writeQueue.end(),data,data+size);
     }
     pimpl->io.post(boost::bind(&AsyncSerial::doWrite, this));
@@ -143,7 +142,7 @@ void AsyncSerial::write(const char *data, size_t size)
 void AsyncSerial::write(const std::vector<char>& data)
 {
     {
-        lock_guard<mutex> l(pimpl->writeQueueMutex);
+				std::lock_guard<std::mutex> l(pimpl->writeQueueMutex);
         pimpl->writeQueue.insert(pimpl->writeQueue.end(),data.begin(),
                 data.end());
     }
@@ -153,7 +152,7 @@ void AsyncSerial::write(const std::vector<char>& data)
 void AsyncSerial::writeString(const std::string& s)
 {
     {
-        lock_guard<mutex> l(pimpl->writeQueueMutex);
+				std::lock_guard<std::mutex> l(pimpl->writeQueueMutex);
         pimpl->writeQueue.insert(pimpl->writeQueue.end(),s.begin(),s.end());
     }
     pimpl->io.post(boost::bind(&AsyncSerial::doWrite, this));
@@ -214,7 +213,7 @@ void AsyncSerial::doWrite()
     //If a write operation is already in progress, do nothing
     if(pimpl->writeBuffer==0)
     {
-        lock_guard<mutex> l(pimpl->writeQueueMutex);
+				std::lock_guard<std::mutex> l(pimpl->writeQueueMutex);
         pimpl->writeBufferSize=pimpl->writeQueue.size();
         pimpl->writeBuffer.reset(new char[pimpl->writeQueue.size()]);
         copy(pimpl->writeQueue.begin(),pimpl->writeQueue.end(),
@@ -230,7 +229,7 @@ void AsyncSerial::writeEnd(const boost::system::error_code& error)
 {
     if(!error)
     {
-        lock_guard<mutex> l(pimpl->writeQueueMutex);
+				std::lock_guard<std::mutex> l(pimpl->writeQueueMutex);
         if(pimpl->writeQueue.empty())
         {
             pimpl->writeBuffer.reset();
@@ -263,7 +262,7 @@ void AsyncSerial::doClose()
 
 void AsyncSerial::setErrorStatus(bool e)
 {
-    lock_guard<mutex> l(pimpl->errorMutex);
+		std::lock_guard<std::mutex> l(pimpl->errorMutex);
     pimpl->error=e;
 }
 
@@ -276,252 +275,6 @@ void AsyncSerial::clearReadCallback()
 {
     pimpl->callback.clear();
 }
-
-#else //__APPLE__
-
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <termios.h>
-#include <unistd.h>
-
-class AsyncSerialImpl: private boost::noncopyable
-{
-public:
-    AsyncSerialImpl(): backgroundThread(), open(false), error(false) {}
-
-		std::thread backgroundThread; ///< Thread that runs read operations
-    bool open; ///< True if port open
-    bool error; ///< Error flag
-		mutable std::mutex errorMutex; ///< Mutex for access to error
-
-    int fd; ///< File descriptor for serial port
-    
-    char readBuffer[AsyncSerial::readBufferSize]; ///< data being read
-
-    /// Read complete callback
-    boost::function<void (const char*, size_t)> callback;
-};
-
-AsyncSerial::AsyncSerial(): pimpl(new AsyncSerialImpl)
-{
-
-}
-
-AsyncSerial::AsyncSerial(const std::string& devname, unsigned int baud_rate,
-        asio::serial_port_base::parity opt_parity,
-        asio::serial_port_base::character_size opt_csize,
-        asio::serial_port_base::flow_control opt_flow,
-        asio::serial_port_base::stop_bits opt_stop)
-        : pimpl(new AsyncSerialImpl)
-{
-    open(devname,baud_rate,opt_parity,opt_csize,opt_flow,opt_stop);
-}
-
-void AsyncSerial::open(const std::string& devname, unsigned int baud_rate,
-        asio::serial_port_base::parity opt_parity,
-        asio::serial_port_base::character_size opt_csize,
-        asio::serial_port_base::flow_control opt_flow,
-        asio::serial_port_base::stop_bits opt_stop)
-{
-    if(isOpen()) close();
-
-    setErrorStatus(true);//If an exception is thrown, error remains true
-    
-    struct termios new_attributes;
-    speed_t speed;
-    int status;
-    
-    // Open port
-    pimpl->fd=::open(devname.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
-    if (pimpl->fd<0) throw(boost::system::system_error(
-            boost::system::error_code(),"Failed to open port"));
-    
-    // Set Port parameters.
-    status=tcgetattr(pimpl->fd,&new_attributes);
-    if(status<0  || !isatty(pimpl->fd))
-    {
-        ::close(pimpl->fd);
-        throw(boost::system::system_error(
-                    boost::system::error_code(),"Device is not a tty"));
-    }
-    new_attributes.c_iflag = IGNBRK;
-    new_attributes.c_oflag = 0;
-    new_attributes.c_lflag = 0;
-    new_attributes.c_cflag = (CS8 | CREAD | CLOCAL);//8 data bit,Enable receiver,Ignore modem
-    /* In non canonical mode (Ctrl-C and other disabled, no echo,...) VMIN and VTIME work this way:
-    if the function read() has'nt read at least VMIN chars it waits until has read at least VMIN
-    chars (even if VTIME timeout expires); once it has read at least vmin chars, if subsequent
-    chars do not arrive before VTIME expires, it returns error; if a char arrives, it resets the
-    timeout, so the internal timer will again start from zero (for the nex char,if any)*/
-    new_attributes.c_cc[VMIN]=1;// Minimum number of characters to read before returning error
-    new_attributes.c_cc[VTIME]=1;// Set timeouts in tenths of second
-
-    // Set baud rate
-    switch(baud_rate)
-    {
-        case 50:speed= B50; break;
-        case 75:speed= B75; break;
-        case 110:speed= B110; break;
-        case 134:speed= B134; break;
-        case 150:speed= B150; break;
-        case 200:speed= B200; break;
-        case 300:speed= B300; break;
-        case 600:speed= B600; break;
-        case 1200:speed= B1200; break;
-        case 1800:speed= B1800; break;
-        case 2400:speed= B2400; break;
-        case 4800:speed= B4800; break;
-        case 9600:speed= B9600; break;
-        case 19200:speed= B19200; break;
-        case 38400:speed= B38400; break;
-        case 57600:speed= B57600; break;
-        case 115200:speed= B115200; break;
-        case 230400:speed= B230400; break;
-        default:
-        {
-            ::close(pimpl->fd);
-            throw(boost::system::system_error(
-                        boost::system::error_code(),"Unsupported baud rate"));
-        }
-    }
-
-    cfsetospeed(&new_attributes,speed);
-    cfsetispeed(&new_attributes,speed);
-
-    //Make changes effective
-    status=tcsetattr(pimpl->fd, TCSANOW, &new_attributes);
-    if(status<0)
-    {
-        ::close(pimpl->fd);
-        throw(boost::system::system_error(
-                    boost::system::error_code(),"Can't set port attributes"));
-    }
-
-    //These 3 lines clear the O_NONBLOCK flag
-    status=fcntl(pimpl->fd, F_GETFL, 0);
-    if(status!=-1) fcntl(pimpl->fd, F_SETFL, status & ~O_NONBLOCK);
-
-    setErrorStatus(false);//If we get here, no error
-    pimpl->open=true; //Port is now open
-
-		std::thread t(bind(&AsyncSerial::doRead, this));
-    pimpl->backgroundThread.swap(t);
-}
-
-bool AsyncSerial::isOpen() const
-{
-    return pimpl->open;
-}
-
-bool AsyncSerial::errorStatus() const
-{
-		std::lock_guard<std::mutex> l(pimpl->errorMutex);
-    return pimpl->error;
-}
-
-void AsyncSerial::close()
-{
-    if(!isOpen()) return;
-
-    pimpl->open=false;
-
-    ::close(pimpl->fd); //The thread waiting on I/O should return
-
-    pimpl->backgroundThread.join();
-    if(errorStatus())
-    {
-        throw(boost::system::system_error(boost::system::error_code(),
-                "Error while closing the device"));
-    }
-}
-
-void AsyncSerial::write(const char *data, size_t size)
-{
-    if(::write(pimpl->fd,data,size)!=size) setErrorStatus(true);
-}
-
-void AsyncSerial::write(const std::vector<char>& data)
-{
-    if(::write(pimpl->fd,&data[0],data.size())!=data.size())
-        setErrorStatus(true);
-}
-
-void AsyncSerial::writeString(const std::string& s)
-{
-    if(::write(pimpl->fd,&s[0],s.size())!=s.size()) setErrorStatus(true);
-}
-
-AsyncSerial::~AsyncSerial()
-{
-    if(isOpen())
-    {
-        try {
-            close();
-        } catch(...)
-        {
-            //Don't throw from a destructor
-        }
-    }
-}
-
-void AsyncSerial::doRead()
-{
-    //Read loop in spawned thread
-    for(;;)
-    {
-        int received=::read(pimpl->fd,pimpl->readBuffer,readBufferSize);
-        if(received<0)
-        {
-            if(isOpen()==false) return; //Thread interrupted because port closed
-            else {
-                setErrorStatus(true);
-                continue;
-            }
-        }
-        if(pimpl->callback) pimpl->callback(pimpl->readBuffer, received);
-    }
-}
-
-void AsyncSerial::readEnd(const boost::system::error_code& error,
-        size_t bytes_transferred)
-{
-    //Not used
-}
-
-void AsyncSerial::doWrite()
-{
-    //Not used
-}
-
-void AsyncSerial::writeEnd(const boost::system::error_code& error)
-{
-    //Not used
-}
-
-void AsyncSerial::doClose()
-{
-    //Not used
-}
-
-void AsyncSerial::setErrorStatus(bool e)
-{
-		std::lock_guard<std::mutex> l(pimpl->errorMutex);
-    pimpl->error=e;
-}
-
-void AsyncSerial::setReadCallback(const
-        function<void (const char*, size_t)>& callback)
-{
-    pimpl->callback=callback;
-}
-
-void AsyncSerial::clearReadCallback()
-{
-    pimpl->callback.clear();
-}
-
-#endif //__APPLE__
 
 //
 //Class CallbackAsyncSerial

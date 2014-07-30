@@ -21,7 +21,7 @@ int main(int argc, char* argv[])
 		//Simulate doing something else while the serial device replies.
 		//When the serial device replies, the second thread stores the received
 		//data in a buffer.
-		//this_thread::sleep(posix_time::seconds(2));
+		std::this_thread::sleep_for(std::chrono::seconds(2));
 
 		//Always returns immediately. If the terminator \r\n has not yet
 		//arrived, returns an empty string.
